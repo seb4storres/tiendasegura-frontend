@@ -1,18 +1,7 @@
 import { apiClient } from '../../../core/api/apiClient';
 import { db } from '../../../core/db/dexieInstance';
 import type { ProductoRow } from '../../../core/db/tables';
-
-// Debe coincidir con ProductoResponse.java del backend (inventario/infrastructure/dto).
-interface ProductoApiResponse {
-  id: string;
-  codigoBarras: string;
-  nombre: string;
-  precio: number;
-  costo?: number;
-  stock: number;
-  categoria?: string;
-  version: number;
-}
+import type { ProductoApiResponse } from '../types';
 
 // Descarga el catálogo completo del backend (ya viene filtrado por tienda vía
 // el JWT + RLS) y lo vuelca en Dexie con `bulkPut`: inserta lo nuevo y
