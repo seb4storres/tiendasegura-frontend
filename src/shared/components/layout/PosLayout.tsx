@@ -11,7 +11,7 @@ import { conectar as conectarImpresora } from '../../../core/printer/serialPrint
 const NAV_ITEMS = [
   { to: '/', label: 'Ventas', icon: ShoppingCart },
   { to: '/inventario', label: 'Inventario', icon: Package },
-  { to: '/fiados', label: 'Fiados', icon: Users },
+  { to: '/cartera', label: 'Cartera', icon: Users },
 ];
 
 export default function PosLayout() {
