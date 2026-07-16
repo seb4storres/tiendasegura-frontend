@@ -1,8 +1,10 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { CreditCard, HandCoins, ScanBarcode, Trash2, XCircle } from 'lucide-react';
 import { useCartStore } from '../store/useCartStore';
+import { registrarVentaEfectivo } from '../services/ventaOfflineService';
 import { formatMoney } from '../../../core/utils/money';
+import { useAuthStore } from '../../../core/store/useAuthStore';
 
 // Catálogo de demostración temporal: se reemplaza por
 // productoService.buscarPorCodigoBarras cuando el módulo de Inventario
@@ -19,12 +21,16 @@ export default function PosTerminalPage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [barcode, setBarcode] = useState('');
   const [notFoundCode, setNotFoundCode] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const cartItems = useCartStore((state) => state.cartItems);
   const total = useCartStore((state) => state.total);
   const addItem = useCartStore((state) => state.addItem);
   const removeItem = useCartStore((state) => state.removeItem);
   const clearCart = useCartStore((state) => state.clearCart);
+
+  const tiendaId = useAuthStore((state) => state.tiendaId);
+  const usuario = useAuthStore((state) => state.usuario);
 
   function handleBarcodeSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -42,6 +48,47 @@ export default function PosTerminalPage() {
     setBarcode('');
     inputRef.current?.focus();
   }
+
+  async function handleCobrar() {
+    if (cartItems.length === 0 || isSubmitting || !tiendaId || !usuario) return;
+
+    setIsSubmitting(true);
+    try {
+      await registrarVentaEfectivo({
+        items: cartItems,
+        total,
+        tiendaId,
+        usuarioId: usuario.id,
+      });
+      clearCart();
+      alert('Venta registrada localmente');
+    } catch {
+      alert('No se pudo registrar la venta. Intenta de nuevo.');
+    } finally {
+      setIsSubmitting(false);
+      inputRef.current?.focus();
+    }
+  }
+
+  function handleFiado() {
+    if (cartItems.length === 0) return;
+    alert('Requiere seleccionar cliente');
+  }
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'F12') {
+        event.preventDefault();
+        handleCobrar();
+      } else if (event.key === 'F9') {
+        event.preventDefault();
+        handleFiado();
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [cartItems, total, tiendaId, usuario, isSubmitting]);
 
   return (
     <div className="flex h-full flex-col gap-4">
@@ -126,14 +173,16 @@ export default function PosTerminalPage() {
           <div className="mt-auto flex flex-col gap-2">
             <button
               type="button"
-              disabled={cartItems.length === 0}
+              onClick={handleCobrar}
+              disabled={cartItems.length === 0 || isSubmitting}
               className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 py-3.5 text-base font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
             >
               <CreditCard size={20} />
-              Cobrar (F12)
+              {isSubmitting ? 'Guardando…' : 'Cobrar (F12)'}
             </button>
             <button
               type="button"
+              onClick={handleFiado}
               disabled={cartItems.length === 0}
               className="flex items-center justify-center gap-2 rounded-xl border border-slate-300 py-3.5 text-base font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300"
             >
