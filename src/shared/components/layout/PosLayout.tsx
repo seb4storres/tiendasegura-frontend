@@ -1,6 +1,8 @@
-import { LogOut, ShoppingCart, Package, Users } from 'lucide-react';
+import { useState } from 'react';
+import { DownloadCloud, LogOut, ShoppingCart, Package, Users } from 'lucide-react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../../core/store/useAuthStore';
+import { sincronizarCatalogoProductos } from '../../../modules/inventario/services/inventarioSyncService';
 
 const NAV_ITEMS = [
   { to: '/', label: 'Ventas', icon: ShoppingCart },
@@ -11,11 +13,29 @@ const NAV_ITEMS = [
 export default function PosLayout() {
   const navigate = useNavigate();
   const usuario = useAuthStore((state) => state.usuario);
+  const tiendaId = useAuthStore((state) => state.tiendaId);
   const logout = useAuthStore((state) => state.logout);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   function handleLogout() {
     logout();
     navigate('/login', { replace: true });
+  }
+
+  // Botón temporal: hasta que exista una sincronización automática/background,
+  // el cajero dispara la descarga del catálogo manualmente.
+  async function handleSincronizarCatalogo() {
+    if (!tiendaId || isSyncing) return;
+
+    setIsSyncing(true);
+    try {
+      const total = await sincronizarCatalogoProductos(tiendaId);
+      alert(`Catálogo actualizado: ${total} productos.`);
+    } catch {
+      alert('No se pudo descargar el catálogo. Verifica tu conexión.');
+    } finally {
+      setIsSyncing(false);
+    }
   }
 
   return (
@@ -47,14 +67,25 @@ export default function PosLayout() {
             <p className="font-medium text-slate-900">{usuario?.nombre ?? usuario?.email}</p>
             <p className="text-slate-500">{usuario?.rol}</p>
           </div>
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-red-50 hover:text-red-600"
-          >
-            <LogOut size={16} />
-            Cerrar sesión
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleSincronizarCatalogo}
+              disabled={isSyncing}
+              className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-blue-50 hover:text-blue-600 disabled:cursor-not-allowed disabled:text-slate-300"
+            >
+              <DownloadCloud size={16} className={isSyncing ? 'animate-spin' : undefined} />
+              {isSyncing ? 'Sincronizando…' : 'Descargar catálogo'}
+            </button>
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-red-50 hover:text-red-600"
+            >
+              <LogOut size={16} />
+              Cerrar sesión
+            </button>
+          </div>
         </header>
 
         <main className="flex-1 overflow-y-auto p-6">

@@ -5,17 +5,7 @@ import { useCartStore } from '../store/useCartStore';
 import { registrarVentaEfectivo } from '../services/ventaOfflineService';
 import { formatMoney } from '../../../core/utils/money';
 import { useAuthStore } from '../../../core/store/useAuthStore';
-
-// Catálogo de demostración temporal: se reemplaza por
-// productoService.buscarPorCodigoBarras cuando el módulo de Inventario
-// quede conectado al backend.
-const CATALOGO_DEMO: Record<string, { nombre: string; precio: number }> = {
-  '7702001001621': { nombre: 'Coca-Cola 400ml', precio: 3000 },
-  '7701234567890': { nombre: 'Pan Tajado', precio: 6500 },
-  '7700000000001': { nombre: 'Arroz Diana 500g', precio: 2800 },
-  '7700000000002': { nombre: 'Leche Alqueria 1L', precio: 4200 },
-  '7700000000003': { nombre: 'Huevos AA x12', precio: 11500 },
-};
+import { db } from '../../../core/db/dexieInstance';
 
 export default function PosTerminalPage() {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -32,14 +22,18 @@ export default function PosTerminalPage() {
   const tiendaId = useAuthStore((state) => state.tiendaId);
   const usuario = useAuthStore((state) => state.usuario);
 
-  function handleBarcodeSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleBarcodeSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const codigo = barcode.trim();
-    if (!codigo) return;
+    if (!codigo || !tiendaId) return;
 
-    const producto = CATALOGO_DEMO[codigo];
+    const producto = await db.productos
+      .where('[tiendaId+codigoBarras]')
+      .equals([tiendaId, codigo])
+      .first();
+
     if (producto) {
-      addItem({ productoId: codigo, nombre: producto.nombre, precio: producto.precio });
+      addItem({ productoId: producto.id, nombre: producto.nombre, precio: producto.precio });
       setNotFoundCode(null);
     } else {
       setNotFoundCode(codigo);
