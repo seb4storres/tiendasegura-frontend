@@ -2,6 +2,8 @@ import { db } from '../../../core/db/dexieInstance';
 import { generateUuid } from '../../../core/utils/uuid';
 import type { CartItem } from '../store/useCartStore';
 import type { MetodoPago } from '../../../core/db/tables';
+import { estaConectada, imprimir } from '../../../core/printer/serialPrinter';
+import { construirRecibo } from '../../../core/printer/receiptBuilder';
 
 interface RegistrarVentaParams {
   items: CartItem[];
@@ -55,5 +57,39 @@ export async function registrarVenta({
     );
   });
 
+  await imprimirReciboSiHayImpresora({ items, total, tiendaId, fecha, metodoPago });
+
   return ventaId;
+}
+
+// La impresión es un efecto secundario "best effort": la venta ya quedó
+// guardada en Dexie, así que un jam de papel, una impresora sin conectar o
+// cualquier falla de imprimir() nunca debe hacer parecer que la venta se
+// perdió. Se atrapa cualquier error y solo se deja constancia en consola.
+async function imprimirReciboSiHayImpresora(params: {
+  items: CartItem[];
+  total: number;
+  tiendaId: string;
+  fecha: string;
+  metodoPago: MetodoPago;
+}): Promise<void> {
+  if (!estaConectada()) return;
+
+  try {
+    const tienda = await db.tiendas.get(params.tiendaId);
+    const recibo = construirRecibo({
+      tiendaNombre: tienda?.nombre ?? 'TiendaSegura POS',
+      fecha: params.fecha,
+      metodoPago: params.metodoPago,
+      total: params.total,
+      items: params.items.map((item) => ({
+        nombre: item.nombre,
+        cantidad: item.cantidad,
+        subtotal: item.subtotal,
+      })),
+    });
+    await imprimir(recibo);
+  } catch (error) {
+    console.error('No se pudo imprimir el recibo:', error);
+  }
 }

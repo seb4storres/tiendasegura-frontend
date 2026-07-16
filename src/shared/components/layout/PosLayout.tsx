@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Cloud, DownloadCloud, LogOut, ShoppingCart, Package, Users } from 'lucide-react';
+import { Cloud, DownloadCloud, LogOut, Printer, ShoppingCart, Package, Users } from 'lucide-react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../../core/store/useAuthStore';
 import { sincronizarCatalogoProductos } from '../../../modules/inventario/services/inventarioSyncService';
 import { useNetworkSync } from '../../../core/hooks/useNetworkSync';
 import { db } from '../../../core/db/dexieInstance';
+import { conectar as conectarImpresora } from '../../../core/printer/serialPrinter';
 
 const NAV_ITEMS = [
   { to: '/', label: 'Ventas', icon: ShoppingCart },
@@ -19,6 +20,7 @@ export default function PosLayout() {
   const tiendaId = useAuthStore((state) => state.tiendaId);
   const logout = useAuthStore((state) => state.logout);
   const [isSyncingCatalogo, setIsSyncingCatalogo] = useState(false);
+  const [impresoraConectada, setImpresoraConectada] = useState(false);
 
   const { isSyncing: isSyncingVentas, forceSync } = useNetworkSync();
   const ventasPendientes =
@@ -65,6 +67,14 @@ export default function PosLayout() {
   function handleLogout() {
     logout();
     navigate('/login', { replace: true });
+  }
+
+  async function handleConectarImpresora() {
+    const resultado = await conectarImpresora();
+    setImpresoraConectada(resultado.conectado);
+    if (resultado.error) {
+      alert(resultado.error);
+    }
   }
 
   // Botón temporal: hasta que exista una sincronización automática/background,
@@ -149,6 +159,14 @@ export default function PosLayout() {
                   {ventasConError > 0 ? ventasConError : ventasPendientes}
                 </span>
               )}
+            </button>
+            <button
+              type="button"
+              onClick={handleConectarImpresora}
+              title={impresoraConectada ? 'Impresora térmica conectada' : 'Conectar impresora térmica'}
+              className="flex items-center justify-center rounded-lg p-2 transition hover:bg-slate-50"
+            >
+              <Printer size={20} className={impresoraConectada ? 'text-emerald-500' : 'text-slate-400'} />
             </button>
             <button
               type="button"
