@@ -1,24 +1,31 @@
 import { db } from '../../../core/db/dexieInstance';
 import { generateUuid } from '../../../core/utils/uuid';
 import type { CartItem } from '../store/useCartStore';
+import type { MetodoPago } from '../../../core/db/tables';
 
-interface RegistrarVentaEfectivoParams {
+interface RegistrarVentaParams {
   items: CartItem[];
   total: number;
   tiendaId: string;
   usuarioId: string;
+  metodoPago: MetodoPago;
+  // Solo se envía (y solo tiene sentido) cuando metodoPago === 'FIADO'.
+  clienteId?: string;
 }
 
-// Guarda la venta en efectivo de forma local (IndexedDB) con syncStatus 'pending'.
-// El id de la venta y de cada detalle se generan aquí mismo (UUID) y viajan tal
-// cual al backend cuando la cola de sincronización los suba: esa es la clave de
-// idempotencia que evita duplicar cobros/stock en la estrategia append-only.
-export async function registrarVentaEfectivo({
+// Guarda la venta de forma local (IndexedDB) con syncStatus 'pending', sin
+// importar el método de pago. El id de la venta y de cada detalle se generan
+// aquí mismo (UUID) y viajan tal cual al backend cuando la cola de
+// sincronización los suba: esa es la clave de idempotencia que evita
+// duplicar cobros/stock en la estrategia append-only.
+export async function registrarVenta({
   items,
   total,
   tiendaId,
   usuarioId,
-}: RegistrarVentaEfectivoParams): Promise<string> {
+  metodoPago,
+  clienteId,
+}: RegistrarVentaParams): Promise<string> {
   const ventaId = generateUuid();
   const fecha = new Date().toISOString();
 
@@ -27,9 +34,10 @@ export async function registrarVentaEfectivo({
       id: ventaId,
       tiendaId,
       usuarioId,
+      clienteId,
       fecha,
       total,
-      metodoPago: 'EFECTIVO',
+      metodoPago,
       estado: 'COMPLETADA',
       syncStatus: 'pending',
       createdAt: fecha,

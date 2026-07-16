@@ -2,16 +2,19 @@ import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { CreditCard, HandCoins, ScanBarcode, Trash2, XCircle } from 'lucide-react';
 import { useCartStore } from '../store/useCartStore';
-import { registrarVentaEfectivo } from '../services/ventaOfflineService';
+import { registrarVenta } from '../services/ventaOfflineService';
+import ClientSelectionModal from '../components/ClientSelectionModal';
 import { formatMoney } from '../../../core/utils/money';
 import { useAuthStore } from '../../../core/store/useAuthStore';
 import { db } from '../../../core/db/dexieInstance';
+import type { ClienteRow } from '../../../core/db/tables';
 
 export default function PosTerminalPage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [barcode, setBarcode] = useState('');
   const [notFoundCode, setNotFoundCode] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isFiadoModalOpen, setIsFiadoModalOpen] = useState(false);
 
   const cartItems = useCartStore((state) => state.cartItems);
   const total = useCartStore((state) => state.total);
@@ -44,15 +47,16 @@ export default function PosTerminalPage() {
   }
 
   async function handleCobrar() {
-    if (cartItems.length === 0 || isSubmitting || !tiendaId || !usuario) return;
+    if (cartItems.length === 0 || isSubmitting || isFiadoModalOpen || !tiendaId || !usuario) return;
 
     setIsSubmitting(true);
     try {
-      await registrarVentaEfectivo({
+      await registrarVenta({
         items: cartItems,
         total,
         tiendaId,
         usuarioId: usuario.id,
+        metodoPago: 'EFECTIVO',
       });
       clearCart();
       alert('Venta registrada localmente');
@@ -66,7 +70,29 @@ export default function PosTerminalPage() {
 
   function handleFiado() {
     if (cartItems.length === 0) return;
-    alert('Requiere seleccionar cliente');
+    setIsFiadoModalOpen(true);
+  }
+
+  async function handleSelectCliente(cliente: ClienteRow) {
+    if (!tiendaId || !usuario) return;
+
+    setIsFiadoModalOpen(false);
+    try {
+      await registrarVenta({
+        items: cartItems,
+        total,
+        tiendaId,
+        usuarioId: usuario.id,
+        metodoPago: 'FIADO',
+        clienteId: cliente.id,
+      });
+      clearCart();
+      alert(`Venta fiada registrada para ${cliente.nombre}`);
+    } catch {
+      alert('No se pudo registrar la venta fiada. Intenta de nuevo.');
+    } finally {
+      inputRef.current?.focus();
+    }
   }
 
   useEffect(() => {
@@ -82,7 +108,7 @@ export default function PosTerminalPage() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [cartItems, total, tiendaId, usuario, isSubmitting]);
+  }, [cartItems, total, tiendaId, usuario, isSubmitting, isFiadoModalOpen]);
 
   return (
     <div className="flex h-full flex-col gap-4">
@@ -195,6 +221,15 @@ export default function PosTerminalPage() {
           </div>
         </div>
       </div>
+
+      {tiendaId && (
+        <ClientSelectionModal
+          isOpen={isFiadoModalOpen}
+          tiendaId={tiendaId}
+          onClose={() => setIsFiadoModalOpen(false)}
+          onSelect={handleSelectCliente}
+        />
+      )}
     </div>
   );
 }

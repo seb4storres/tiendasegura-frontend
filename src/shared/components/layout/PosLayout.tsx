@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Cloud, DownloadCloud, LogOut, ShoppingCart, Package, Users } from 'lucide-react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
@@ -25,6 +25,42 @@ export default function PosLayout() {
     useLiveQuery(() => db.ventas.where('syncStatus').equals('pending').count(), []) ?? 0;
   const ventasConError =
     useLiveQuery(() => db.ventas.where('syncStatus').equals('error').count(), []) ?? 0;
+
+  // Seed temporal para poder probar el flujo de Fiados: el módulo de
+  // clientes todavía no tiene su propia pantalla ni sincronización con el
+  // backend, así que se precargan un par de clientes de ejemplo la primera
+  // vez que se abre el POS para una tienda. IDs fijos + bulkPut (upsert) en
+  // vez de UUIDs generados aquí: así el seed es idempotente sin importar
+  // cuántas veces se ejecute el efecto (p. ej. el doble montaje de
+  // React.StrictMode en desarrollo), sin necesitar un chequeo previo que
+  // sería una condición de carrera entre dos ejecuciones concurrentes.
+  useEffect(() => {
+    if (!tiendaId) return;
+
+    const ahora = new Date().toISOString();
+    db.clientes.bulkPut([
+      {
+        id: '00000000-0000-4000-8000-000000000001',
+        tiendaId,
+        nombre: 'Don Juan',
+        telefono: '3001234567',
+        limiteCredito: 100000,
+        saldoActual: 0,
+        syncStatus: 'synced',
+        updatedAt: ahora,
+      },
+      {
+        id: '00000000-0000-4000-8000-000000000002',
+        tiendaId,
+        nombre: 'Doña María',
+        telefono: '3007654321',
+        limiteCredito: 150000,
+        saldoActual: 0,
+        syncStatus: 'synced',
+        updatedAt: ahora,
+      },
+    ]);
+  }, [tiendaId]);
 
   function handleLogout() {
     logout();
