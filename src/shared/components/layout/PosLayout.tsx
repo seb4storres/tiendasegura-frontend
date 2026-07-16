@@ -1,8 +1,11 @@
 import { useState } from 'react';
-import { DownloadCloud, LogOut, ShoppingCart, Package, Users } from 'lucide-react';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { Cloud, DownloadCloud, LogOut, ShoppingCart, Package, Users } from 'lucide-react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../../core/store/useAuthStore';
 import { sincronizarCatalogoProductos } from '../../../modules/inventario/services/inventarioSyncService';
+import { useNetworkSync } from '../../../core/hooks/useNetworkSync';
+import { db } from '../../../core/db/dexieInstance';
 
 const NAV_ITEMS = [
   { to: '/', label: 'Ventas', icon: ShoppingCart },
@@ -15,7 +18,13 @@ export default function PosLayout() {
   const usuario = useAuthStore((state) => state.usuario);
   const tiendaId = useAuthStore((state) => state.tiendaId);
   const logout = useAuthStore((state) => state.logout);
-  const [isSyncing, setIsSyncing] = useState(false);
+  const [isSyncingCatalogo, setIsSyncingCatalogo] = useState(false);
+
+  const { isSyncing: isSyncingVentas, forceSync } = useNetworkSync();
+  const ventasPendientes =
+    useLiveQuery(() => db.ventas.where('syncStatus').equals('pending').count(), []) ?? 0;
+  const ventasConError =
+    useLiveQuery(() => db.ventas.where('syncStatus').equals('error').count(), []) ?? 0;
 
   function handleLogout() {
     logout();
@@ -25,16 +34,16 @@ export default function PosLayout() {
   // Botón temporal: hasta que exista una sincronización automática/background,
   // el cajero dispara la descarga del catálogo manualmente.
   async function handleSincronizarCatalogo() {
-    if (!tiendaId || isSyncing) return;
+    if (!tiendaId || isSyncingCatalogo) return;
 
-    setIsSyncing(true);
+    setIsSyncingCatalogo(true);
     try {
       const total = await sincronizarCatalogoProductos(tiendaId);
       alert(`Catálogo actualizado: ${total} productos.`);
     } catch {
       alert('No se pudo descargar el catálogo. Verifica tu conexión.');
     } finally {
-      setIsSyncing(false);
+      setIsSyncingCatalogo(false);
     }
   }
 
@@ -70,12 +79,49 @@ export default function PosLayout() {
           <div className="flex items-center gap-2">
             <button
               type="button"
+              onClick={forceSync}
+              disabled={isSyncingVentas}
+              title={
+                isSyncingVentas
+                  ? 'Sincronizando ventas…'
+                  : ventasConError > 0
+                    ? `${ventasConError} venta(s) con error de sincronización: requieren atención`
+                    : ventasPendientes > 0
+                      ? `${ventasPendientes} venta(s) pendientes de sincronizar`
+                      : 'Todas las ventas están sincronizadas'
+              }
+              className="relative flex items-center justify-center rounded-lg p-2 transition hover:bg-slate-50 disabled:cursor-not-allowed"
+            >
+              <Cloud
+                size={20}
+                className={
+                  isSyncingVentas
+                    ? 'animate-spin text-blue-500'
+                    : ventasConError > 0
+                      ? 'text-red-500'
+                      : ventasPendientes > 0
+                        ? 'text-amber-500'
+                        : 'text-emerald-500'
+                }
+              />
+              {!isSyncingVentas && (ventasConError > 0 || ventasPendientes > 0) && (
+                <span
+                  className={`absolute -right-0.5 -top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[10px] font-bold leading-none text-white ${
+                    ventasConError > 0 ? 'bg-red-500' : 'bg-amber-500'
+                  }`}
+                >
+                  {ventasConError > 0 ? ventasConError : ventasPendientes}
+                </span>
+              )}
+            </button>
+            <button
+              type="button"
               onClick={handleSincronizarCatalogo}
-              disabled={isSyncing}
+              disabled={isSyncingCatalogo}
               className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-blue-50 hover:text-blue-600 disabled:cursor-not-allowed disabled:text-slate-300"
             >
-              <DownloadCloud size={16} className={isSyncing ? 'animate-spin' : undefined} />
-              {isSyncing ? 'Sincronizando…' : 'Descargar catálogo'}
+              <DownloadCloud size={16} className={isSyncingCatalogo ? 'animate-spin' : undefined} />
+              {isSyncingCatalogo ? 'Sincronizando…' : 'Descargar catálogo'}
             </button>
             <button
               type="button"
