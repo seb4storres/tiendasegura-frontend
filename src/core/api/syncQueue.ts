@@ -214,3 +214,17 @@ export async function procesarTodoPendiente(): Promise<void> {
   await procesarVentasPendientes();
   await procesarAbonosPendientes();
 }
+
+// "Eager sync": lo llaman los servicios de creación (ventaOfflineService,
+// clienteService, fiadoService) justo después de que su transacción local
+// termina con éxito. No se espera (fire-and-forget) para no retrasar la
+// respuesta al cajero — la nube pasa a verde sola en cuanto termina, sin
+// que nadie tenga que hacer clic. Si no hay conexión no hace nada; el
+// evento 'online' de useNetworkSync se encarga de reintentar más tarde.
+export function dispararSincronizacionSiHayConexion(): void {
+  if (!navigator.onLine) return;
+
+  procesarTodoPendiente().catch((error) => {
+    console.error('Fallo la sincronización automática:', error);
+  });
+}

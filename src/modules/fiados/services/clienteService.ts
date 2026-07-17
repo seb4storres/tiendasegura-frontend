@@ -1,6 +1,7 @@
 import { db } from '../../../core/db/dexieInstance';
 import { generateUuid } from '../../../core/utils/uuid';
 import type { ClienteRow } from '../../../core/db/tables';
+import { dispararSincronizacionSiHayConexion } from '../../../core/api/syncQueue';
 
 export interface RegistrarClienteParams {
   tiendaId: string;
@@ -28,5 +29,6 @@ export async function registrarCliente(params: RegistrarClienteParams): Promise<
   };
 
   await db.clientes.add(cliente);
+  dispararSincronizacionSiHayConexion();
   return cliente;
 }

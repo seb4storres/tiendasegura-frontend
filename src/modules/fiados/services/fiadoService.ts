@@ -1,5 +1,6 @@
 import { db } from '../../../core/db/dexieInstance';
 import { generateUuid } from '../../../core/utils/uuid';
+import { dispararSincronizacionSiHayConexion } from '../../../core/api/syncQueue';
 
 // Descuenta el abono del saldo del cliente y deja registro del movimiento en
 // `abonos`, todo en una sola transacción: si algo falla, no queda un abono
@@ -29,4 +30,6 @@ export async function registrarAbono(clienteId: string, monto: number, usuarioId
       createdAt: fecha,
     });
   });
+
+  dispararSincronizacionSiHayConexion();
 }

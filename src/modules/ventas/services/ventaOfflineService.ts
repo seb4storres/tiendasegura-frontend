@@ -4,6 +4,7 @@ import type { CartItem } from '../store/useCartStore';
 import type { MetodoPago } from '../../../core/db/tables';
 import { estaConectada, imprimir } from '../../../core/printer/serialPrinter';
 import { construirRecibo } from '../../../core/printer/receiptBuilder';
+import { dispararSincronizacionSiHayConexion } from '../../../core/api/syncQueue';
 
 interface RegistrarVentaParams {
   items: CartItem[];
@@ -34,7 +35,7 @@ export async function registrarVenta({
   const ventaId = generateUuid();
   const fecha = new Date().toISOString();
 
-  await db.transaction('rw', db.ventas, db.detalleVentas, db.clientes, async () => {
+  await db.transaction('rw', db.ventas, db.detalleVentas, db.clientes, db.productos, async () => {
     await db.ventas.add({
       id: ventaId,
       tiendaId,
@@ -60,6 +61,18 @@ export async function registrarVenta({
       })),
     );
 
+    // Descuenta el stock local en la misma transacción: sin esto, el
+    // inventario visual no baja hasta la próxima sincronización completa
+    // del catálogo, dejando que el cajero sobrevenda mercancía offline.
+    for (const item of items) {
+      const producto = await db.productos.get(item.productoId);
+      if (producto) {
+        await db.productos.update(item.productoId, {
+          stock: producto.stock - item.cantidad,
+        });
+      }
+    }
+
     // Una venta FIADO es deuda nueva: sin esto, la "Deuda actual" de Cartera
     // nunca subiría con las compras, solo bajaría con los abonos.
     if (clienteId) {
@@ -73,6 +86,7 @@ export async function registrarVenta({
     }
   });
 
+  dispararSincronizacionSiHayConexion();
   await imprimirReciboSiHayImpresora({ items, total, tiendaId, fecha, metodoPago, montoRecibido });
 
   return ventaId;
