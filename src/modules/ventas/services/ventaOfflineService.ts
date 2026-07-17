@@ -31,7 +31,7 @@ export async function registrarVenta({
   const ventaId = generateUuid();
   const fecha = new Date().toISOString();
 
-  await db.transaction('rw', db.ventas, db.detalleVentas, async () => {
+  await db.transaction('rw', db.ventas, db.detalleVentas, db.clientes, async () => {
     await db.ventas.add({
       id: ventaId,
       tiendaId,
@@ -55,6 +55,18 @@ export async function registrarVenta({
         subtotal: item.subtotal,
       })),
     );
+
+    // Una venta FIADO es deuda nueva: sin esto, la "Deuda actual" de Cartera
+    // nunca subiría con las compras, solo bajaría con los abonos.
+    if (clienteId) {
+      const cliente = await db.clientes.get(clienteId);
+      if (cliente) {
+        await db.clientes.update(clienteId, {
+          saldoActual: cliente.saldoActual + total,
+          updatedAt: fecha,
+        });
+      }
+    }
   });
 
   await imprimirReciboSiHayImpresora({ items, total, tiendaId, fecha, metodoPago });

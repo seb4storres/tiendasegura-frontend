@@ -1,12 +1,16 @@
+import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useNavigate } from 'react-router-dom';
+import { UserPlus } from 'lucide-react';
 import { db } from '../../../core/db/dexieInstance';
 import { useAuthStore } from '../../../core/store/useAuthStore';
 import { formatMoney } from '../../../core/utils/money';
+import ClienteQuickCreateForm from '../components/ClienteQuickCreateForm';
 
 export default function ClientListPage() {
   const navigate = useNavigate();
   const tiendaId = useAuthStore((state) => state.tiendaId);
+  const [isCreating, setIsCreating] = useState(false);
 
   const clientes =
     useLiveQuery(
@@ -16,7 +20,27 @@ export default function ClientListPage() {
 
   return (
     <div className="flex h-full flex-col gap-4">
-      <h1 className="text-xl font-semibold text-slate-900">Cartera</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-semibold text-slate-900">Cartera</h1>
+        {!isCreating && (
+          <button
+            type="button"
+            onClick={() => setIsCreating(true)}
+            className="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700"
+          >
+            <UserPlus size={18} />
+            Nuevo cliente
+          </button>
+        )}
+      </div>
+
+      {isCreating && tiendaId && (
+        <ClienteQuickCreateForm
+          tiendaId={tiendaId}
+          onCancel={() => setIsCreating(false)}
+          onCreated={() => setIsCreating(false)}
+        />
+      )}
 
       <div className="flex-1 overflow-y-auto rounded-xl border border-slate-200 bg-white">
         {clientes.length === 0 ? (

@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Search, X } from 'lucide-react';
+import { Search, UserPlus, X } from 'lucide-react';
 import { db } from '../../../core/db/dexieInstance';
 import type { ClienteRow } from '../../../core/db/tables';
 import { formatMoney } from '../../../core/utils/money';
+import ClienteQuickCreateForm from '../../fiados/components/ClienteQuickCreateForm';
 
 interface ClientSelectionModalProps {
   isOpen: boolean;
@@ -20,6 +21,7 @@ export default function ClientSelectionModal({
   onSelect,
 }: ClientSelectionModalProps) {
   const [search, setSearch] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const clientes =
@@ -32,6 +34,7 @@ export default function ClientSelectionModal({
   useEffect(() => {
     if (!isOpen) return;
     setSearch('');
+    setIsCreating(false);
     inputRef.current?.focus();
 
     function handleKeyDown(event: KeyboardEvent) {
@@ -65,45 +68,71 @@ export default function ClientSelectionModal({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="px-5 pt-4">
-          <div className="relative">
-            <Search
-              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-              size={18}
-            />
-            <input
-              ref={inputRef}
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Buscar cliente por nombre..."
-              className="w-full rounded-lg border border-slate-300 py-2.5 pl-10 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+        {isCreating ? (
+          <div className="p-5">
+            <ClienteQuickCreateForm
+              tiendaId={tiendaId}
+              onCancel={() => setIsCreating(false)}
+              onCreated={(cliente) => {
+                setIsCreating(false);
+                onSelect(cliente);
+              }}
             />
           </div>
-        </form>
+        ) : (
+          <>
+            <form onSubmit={handleSubmit} className="px-5 pt-4">
+              <div className="relative">
+                <Search
+                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                  size={18}
+                />
+                <input
+                  ref={inputRef}
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Buscar cliente por nombre..."
+                  className="w-full rounded-lg border border-slate-300 py-2.5 pl-10 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                />
+              </div>
+            </form>
 
-        <ul className="flex-1 overflow-y-auto px-2 py-3">
-          {clientes.length === 0 ? (
-            <li className="px-3 py-8 text-center text-sm text-slate-400">No se encontraron clientes.</li>
-          ) : (
-            clientes.map((cliente) => (
-              <li key={cliente.id}>
-                <button
-                  type="button"
-                  onClick={() => onSelect(cliente)}
-                  className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left transition hover:bg-blue-50"
-                >
-                  <span>
-                    <span className="block text-sm font-medium text-slate-900">{cliente.nombre}</span>
-                    {cliente.telefono && (
-                      <span className="block text-xs text-slate-500">{cliente.telefono}</span>
-                    )}
-                  </span>
-                  <span className="text-xs text-slate-400">Saldo: {formatMoney(cliente.saldoActual)}</span>
-                </button>
-              </li>
-            ))
-          )}
-        </ul>
+            <div className="px-5 pt-3">
+              <button
+                type="button"
+                onClick={() => setIsCreating(true)}
+                className="flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:underline"
+              >
+                <UserPlus size={16} />
+                Nuevo cliente
+              </button>
+            </div>
+
+            <ul className="flex-1 overflow-y-auto px-2 py-3">
+              {clientes.length === 0 ? (
+                <li className="px-3 py-8 text-center text-sm text-slate-400">No se encontraron clientes.</li>
+              ) : (
+                clientes.map((cliente) => (
+                  <li key={cliente.id}>
+                    <button
+                      type="button"
+                      onClick={() => onSelect(cliente)}
+                      className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left transition hover:bg-blue-50"
+                    >
+                      <span>
+                        <span className="block text-sm font-medium text-slate-900">{cliente.nombre}</span>
+                        {cliente.telefono && (
+                          <span className="block text-xs text-slate-500">{cliente.telefono}</span>
+                        )}
+                      </span>
+                      <span className="text-xs text-slate-400">Saldo: {formatMoney(cliente.saldoActual)}</span>
+                    </button>
+                  </li>
+                ))
+              )}
+            </ul>
+          </>
+        )}
       </div>
     </div>
   );
