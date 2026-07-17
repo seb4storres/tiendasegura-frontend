@@ -11,6 +11,10 @@ export interface AuthUsuario {
 
 interface AuthData {
   token: string;
+  // Todavía no hay lógica de refresh en apiClient (se agrega cuando el
+  // access token empiece a expirar en producción); se persiste desde ya
+  // para no tener que volver a tocar el shape del store en ese momento.
+  refreshToken: string;
   tiendaId: string;
   usuario: AuthUsuario;
 }
@@ -27,13 +31,20 @@ export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
       token: undefined,
+      refreshToken: undefined,
       tiendaId: undefined,
       usuario: undefined,
       isAuthenticated: false,
-      login: ({ token, tiendaId, usuario }) =>
-        set({ token, tiendaId, usuario, isAuthenticated: true }),
+      login: ({ token, refreshToken, tiendaId, usuario }) =>
+        set({ token, refreshToken, tiendaId, usuario, isAuthenticated: true }),
       logout: () =>
-        set({ token: undefined, tiendaId: undefined, usuario: undefined, isAuthenticated: false }),
+        set({
+          token: undefined,
+          refreshToken: undefined,
+          tiendaId: undefined,
+          usuario: undefined,
+          isAuthenticated: false,
+        }),
     }),
     { name: 'tiendasegura-auth' },
   ),

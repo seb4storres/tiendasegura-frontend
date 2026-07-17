@@ -1,6 +1,7 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import ProtectedRoute from './core/auth/ProtectedRoute';
 import LoginPage from './modules/auth/pages/LoginPage';
+import RegistroPage from './modules/auth/pages/RegistroPage';
 import PosTerminalPage from './modules/ventas/pages/PosTerminalPage';
 import ProductListPage from './modules/inventario/pages/ProductListPage';
 import ProductFormPage from './modules/inventario/pages/ProductFormPage';
@@ -13,6 +14,7 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/registro" element={<RegistroPage />} />
         <Route element={<ProtectedRoute />}>
           <Route element={<PosLayout />}>
             <Route path="/" element={<PosTerminalPage />} />
