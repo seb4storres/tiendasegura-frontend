@@ -4,6 +4,7 @@ import { CreditCard, HandCoins, ScanBarcode, Trash2, XCircle } from 'lucide-reac
 import { useCartStore } from '../store/useCartStore';
 import { registrarVenta } from '../services/ventaOfflineService';
 import ClientSelectionModal from '../components/ClientSelectionModal';
+import PaymentConfirmationModal from '../components/PaymentConfirmationModal';
 import { formatMoney } from '../../../core/utils/money';
 import { useAuthStore } from '../../../core/store/useAuthStore';
 import { db } from '../../../core/db/dexieInstance';
@@ -15,6 +16,7 @@ export default function PosTerminalPage() {
   const [notFoundCode, setNotFoundCode] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isFiadoModalOpen, setIsFiadoModalOpen] = useState(false);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
 
   const cartItems = useCartStore((state) => state.cartItems);
   const total = useCartStore((state) => state.total);
@@ -46,8 +48,13 @@ export default function PosTerminalPage() {
     inputRef.current?.focus();
   }
 
-  async function handleCobrar() {
-    if (cartItems.length === 0 || isSubmitting || isFiadoModalOpen || !tiendaId || !usuario) return;
+  function handleCobrar() {
+    if (cartItems.length === 0 || isSubmitting || isFiadoModalOpen || isPaymentModalOpen) return;
+    setIsPaymentModalOpen(true);
+  }
+
+  async function handleConfirmarPago(montoRecibido: number) {
+    if (!tiendaId || !usuario) return;
 
     setIsSubmitting(true);
     try {
@@ -57,9 +64,11 @@ export default function PosTerminalPage() {
         tiendaId,
         usuarioId: usuario.id,
         metodoPago: 'EFECTIVO',
+        montoRecibido,
       });
+      setIsPaymentModalOpen(false);
       clearCart();
-      alert('Venta registrada localmente');
+      alert(`Venta registrada localmente. Vuelto: ${formatMoney(montoRecibido - total)}`);
     } catch {
       alert('No se pudo registrar la venta. Intenta de nuevo.');
     } finally {
@@ -69,7 +78,7 @@ export default function PosTerminalPage() {
   }
 
   function handleFiado() {
-    if (cartItems.length === 0) return;
+    if (cartItems.length === 0 || isPaymentModalOpen) return;
     setIsFiadoModalOpen(true);
   }
 
@@ -108,7 +117,7 @@ export default function PosTerminalPage() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [cartItems, total, tiendaId, usuario, isSubmitting, isFiadoModalOpen]);
+  }, [cartItems, isSubmitting, isFiadoModalOpen, isPaymentModalOpen]);
 
   return (
     <div className="flex h-full flex-col gap-4">
@@ -194,11 +203,11 @@ export default function PosTerminalPage() {
             <button
               type="button"
               onClick={handleCobrar}
-              disabled={cartItems.length === 0 || isSubmitting}
+              disabled={cartItems.length === 0 || isSubmitting || isPaymentModalOpen}
               className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 py-3.5 text-base font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
             >
               <CreditCard size={20} />
-              {isSubmitting ? 'Guardando…' : 'Cobrar (F12)'}
+              Cobrar (F12)
             </button>
             <button
               type="button"
@@ -230,6 +239,14 @@ export default function PosTerminalPage() {
           onSelect={handleSelectCliente}
         />
       )}
+
+      <PaymentConfirmationModal
+        isOpen={isPaymentModalOpen}
+        total={total}
+        isSubmitting={isSubmitting}
+        onClose={() => setIsPaymentModalOpen(false)}
+        onConfirm={handleConfirmarPago}
+      />
     </div>
   );
 }

@@ -13,6 +13,8 @@ export interface ReciboVenta {
   items: ReciboItem[];
   total: number;
   metodoPago: string;
+  // Solo presente en pagos EFECTIVO; el cambio se calcula a partir de este.
+  montoRecibido?: number;
 }
 
 // Ancho aproximado para papel de 58mm con la fuente por defecto de la
@@ -51,6 +53,13 @@ export function construirRecibo(venta: ReciboVenta): Uint8Array {
   partes.push(text(`TOTAL: ${formatMoney(venta.total)}\n`));
   partes.push(bold(false));
   partes.push(text(`Metodo de pago: ${venta.metodoPago}\n`));
+
+  if (venta.montoRecibido !== undefined) {
+    const cambio = venta.montoRecibido - venta.total;
+    partes.push(text(`Efectivo recibido: ${formatMoney(venta.montoRecibido)}\n`));
+    partes.push(text(`Cambio: ${formatMoney(cambio)}\n`));
+  }
+
   partes.push(feed(1));
   partes.push(text('Gracias por su compra!\n'));
   partes.push(feed(3));

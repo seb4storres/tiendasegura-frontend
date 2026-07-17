@@ -11,9 +11,7 @@ interface VentaItemRequest {
 
 // Shape real confirmado contra el backend: el arreglo de líneas se llama
 // `items` (no `detalles`), y los pagos en EFECTIVO exigen `montoRecibido`
-// para que el backend calcule el vuelto. La UI todavía no le pregunta al
-// cajero cuánto efectivo recibió del cliente, así que por ahora se asume
-// pago exacto (sin vuelto) — falta construir esa pantalla en el checkout.
+// para que el backend calcule el vuelto.
 interface VentaRequest {
   id: string;
   fecha: string;
@@ -110,7 +108,9 @@ export async function procesarVentasPendientes(): Promise<ProcesarColaResultado>
         fecha: venta.fecha,
         metodoPago: venta.metodoPago,
         clienteId: venta.clienteId,
-        montoRecibido: venta.metodoPago === 'EFECTIVO' ? venta.total : undefined,
+        // Fallback a `total` (pago exacto) para ventas guardadas antes de
+        // que el checkout empezara a capturar el monto recibido real.
+        montoRecibido: venta.metodoPago === 'EFECTIVO' ? (venta.montoRecibido ?? venta.total) : undefined,
         items: detalles.map((detalle) => ({
           productoId: detalle.productoId,
           cantidad: detalle.cantidad,

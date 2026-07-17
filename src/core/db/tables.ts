@@ -54,6 +54,9 @@ export interface VentaRow {
   fecha: string;
   total: number;
   metodoPago: MetodoPago;
+  // Solo presente cuando metodoPago === 'EFECTIVO'; el vuelto se deriva
+  // como montoRecibido - total donde haga falta, no se persiste aparte.
+  montoRecibido?: number;
   estado: EstadoVenta;
   // `id` es también la clave de idempotencia enviada al backend.
   syncStatus: SyncStatus;

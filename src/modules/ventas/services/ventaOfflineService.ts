@@ -13,6 +13,8 @@ interface RegistrarVentaParams {
   metodoPago: MetodoPago;
   // Solo se envía (y solo tiene sentido) cuando metodoPago === 'FIADO'.
   clienteId?: string;
+  // Solo se envía (y solo tiene sentido) cuando metodoPago === 'EFECTIVO'.
+  montoRecibido?: number;
 }
 
 // Guarda la venta de forma local (IndexedDB) con syncStatus 'pending', sin
@@ -27,6 +29,7 @@ export async function registrarVenta({
   usuarioId,
   metodoPago,
   clienteId,
+  montoRecibido,
 }: RegistrarVentaParams): Promise<string> {
   const ventaId = generateUuid();
   const fecha = new Date().toISOString();
@@ -40,6 +43,7 @@ export async function registrarVenta({
       fecha,
       total,
       metodoPago,
+      montoRecibido,
       estado: 'COMPLETADA',
       syncStatus: 'pending',
       createdAt: fecha,
@@ -69,7 +73,7 @@ export async function registrarVenta({
     }
   });
 
-  await imprimirReciboSiHayImpresora({ items, total, tiendaId, fecha, metodoPago });
+  await imprimirReciboSiHayImpresora({ items, total, tiendaId, fecha, metodoPago, montoRecibido });
 
   return ventaId;
 }
@@ -84,6 +88,7 @@ async function imprimirReciboSiHayImpresora(params: {
   tiendaId: string;
   fecha: string;
   metodoPago: MetodoPago;
+  montoRecibido?: number;
 }): Promise<void> {
   if (!estaConectada()) return;
 
@@ -94,6 +99,7 @@ async function imprimirReciboSiHayImpresora(params: {
       fecha: params.fecha,
       metodoPago: params.metodoPago,
       total: params.total,
+      montoRecibido: params.montoRecibido,
       items: params.items.map((item) => ({
         nombre: item.nombre,
         cantidad: item.cantidad,
