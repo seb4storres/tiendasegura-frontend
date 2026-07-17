@@ -23,10 +23,24 @@ export default function PosLayout() {
   const [impresoraConectada, setImpresoraConectada] = useState(false);
 
   const { isSyncing: isSyncingVentas, forceSync } = useNetworkSync();
-  const ventasPendientes =
-    useLiveQuery(() => db.ventas.where('syncStatus').equals('pending').count(), []) ?? 0;
-  const ventasConError =
-    useLiveQuery(() => db.ventas.where('syncStatus').equals('error').count(), []) ?? 0;
+  // Cuenta ventas + abonos juntos: la nube refleja el estado global de todo
+  // lo que falta subir, sin importar si es un cobro o el pago de una deuda.
+  const transaccionesPendientes =
+    useLiveQuery(async () => {
+      const [ventas, abonos] = await Promise.all([
+        db.ventas.where('syncStatus').equals('pending').count(),
+        db.abonos.where('syncStatus').equals('pending').count(),
+      ]);
+      return ventas + abonos;
+    }, []) ?? 0;
+  const transaccionesConError =
+    useLiveQuery(async () => {
+      const [ventas, abonos] = await Promise.all([
+        db.ventas.where('syncStatus').equals('error').count(),
+        db.abonos.where('syncStatus').equals('error').count(),
+      ]);
+      return ventas + abonos;
+    }, []) ?? 0;
 
   // Seed temporal para poder probar el flujo de Fiados: el módulo de
   // clientes todavía no tiene su propia pantalla ni sincronización con el
@@ -129,12 +143,12 @@ export default function PosLayout() {
               disabled={isSyncingVentas}
               title={
                 isSyncingVentas
-                  ? 'Sincronizando ventas…'
-                  : ventasConError > 0
-                    ? `${ventasConError} venta(s) con error de sincronización: requieren atención`
-                    : ventasPendientes > 0
-                      ? `${ventasPendientes} venta(s) pendientes de sincronizar`
-                      : 'Todas las ventas están sincronizadas'
+                  ? 'Sincronizando…'
+                  : transaccionesConError > 0
+                    ? `${transaccionesConError} transacción(es) con error de sincronización: requieren atención`
+                    : transaccionesPendientes > 0
+                      ? `${transaccionesPendientes} transacción(es) pendientes de sincronizar`
+                      : 'Todo está sincronizado'
               }
               className="relative flex items-center justify-center rounded-lg p-2 transition hover:bg-slate-50 disabled:cursor-not-allowed"
             >
@@ -143,20 +157,20 @@ export default function PosLayout() {
                 className={
                   isSyncingVentas
                     ? 'animate-spin text-blue-500'
-                    : ventasConError > 0
+                    : transaccionesConError > 0
                       ? 'text-red-500'
-                      : ventasPendientes > 0
+                      : transaccionesPendientes > 0
                         ? 'text-amber-500'
                         : 'text-emerald-500'
                 }
               />
-              {!isSyncingVentas && (ventasConError > 0 || ventasPendientes > 0) && (
+              {!isSyncingVentas && (transaccionesConError > 0 || transaccionesPendientes > 0) && (
                 <span
                   className={`absolute -right-0.5 -top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[10px] font-bold leading-none text-white ${
-                    ventasConError > 0 ? 'bg-red-500' : 'bg-amber-500'
+                    transaccionesConError > 0 ? 'bg-red-500' : 'bg-amber-500'
                   }`}
                 >
-                  {ventasConError > 0 ? ventasConError : ventasPendientes}
+                  {transaccionesConError > 0 ? transaccionesConError : transaccionesPendientes}
                 </span>
               )}
             </button>
