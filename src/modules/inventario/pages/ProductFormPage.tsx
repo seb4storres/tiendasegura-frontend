@@ -26,8 +26,8 @@ export default function ProductFormPage() {
         {
           codigoBarras: codigoBarras.trim(),
           nombre: nombre.trim(),
-          precio: Number(precio),
-          stock: Number(stock),
+          precioVenta: Number(precio),
+          stockInicial: Number(stock),
         },
         tiendaId,
       );

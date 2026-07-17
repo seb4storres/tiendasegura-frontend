@@ -1,13 +1,15 @@
-// Debe coincidir con ProductoResponse.java del backend (inventario/infrastructure/dto).
-// Compartido por inventarioSyncService (GET /productos) y productoService
-// (POST /productos): ambos reciben el mismo shape desde el backend.
+// Shape real confirmado contra el backend (GET /productos y POST /productos
+// devuelven exactamente esto). No existe un campo `categoria` en la
+// respuesta; `costo` de nuestro ProductoRow se llena desde `precioCompra`.
 export interface ProductoApiResponse {
   id: string;
+  tiendaId: string;
   codigoBarras: string;
   nombre: string;
-  precio: number;
-  costo?: number;
+  precioCompra: number;
+  precioVenta: number;
   stock: number;
-  categoria?: string;
+  stockMinimo: number;
+  activo: boolean;
   version: number;
 }

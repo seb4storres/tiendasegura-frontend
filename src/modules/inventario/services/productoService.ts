@@ -3,12 +3,14 @@ import { db } from '../../../core/db/dexieInstance';
 import type { ProductoRow } from '../../../core/db/tables';
 import type { ProductoApiResponse } from '../types';
 
-// Debe coincidir con ProductoRequest.java del backend (inventario/infrastructure/dto).
+// Shape real confirmado contra el backend: `precioVenta` y `stockInicial`,
+// no `precio`/`stock` (esos son los nombres de campo en la RESPUESTA, no en
+// lo que acepta la creación).
 export interface CrearProductoData {
   codigoBarras: string;
   nombre: string;
-  precio: number;
-  stock: number;
+  precioVenta: number;
+  stockInicial: number;
 }
 
 // Crea el producto en el backend y, apenas responde 201, lo guarda en Dexie
@@ -22,10 +24,9 @@ export async function crearProducto(data: CrearProductoData, tiendaId: string): 
     tiendaId,
     codigoBarras: producto.codigoBarras,
     nombre: producto.nombre,
-    precio: producto.precio,
-    costo: producto.costo,
+    precio: producto.precioVenta,
+    costo: producto.precioCompra,
     stock: producto.stock,
-    categoria: producto.categoria,
     version: producto.version,
     syncStatus: 'synced',
     updatedAt: new Date().toISOString(),
