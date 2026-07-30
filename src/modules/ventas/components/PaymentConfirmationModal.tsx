@@ -53,15 +53,18 @@ export default function PaymentConfirmationModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
-      <div className="w-full max-w-sm rounded-xl bg-white shadow-xl">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"
+      onClick={onClose}
+    >
+      <div className="w-full max-w-sm rounded-xl bg-white shadow-xl" onClick={(event) => event.stopPropagation()}>
         <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
           <h2 className="text-lg font-semibold text-slate-900">Confirmar pago</h2>
           <button
             type="button"
             onClick={onClose}
             aria-label="Cerrar"
-            className="rounded-lg p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+            className="flex h-11 w-11 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
           >
             <X size={18} />
           </button>
@@ -93,7 +96,7 @@ export default function PaymentConfirmationModal({
               type="button"
               onClick={() => setMontoRecibido(String(total))}
               disabled={isSubmitting}
-              className="rounded-lg border border-slate-300 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed"
+              className="min-h-11 rounded-lg border border-slate-300 py-3 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed"
             >
               Pago exacto
             </button>
@@ -103,7 +106,7 @@ export default function PaymentConfirmationModal({
                 type="button"
                 onClick={() => setMontoRecibido(String(billete))}
                 disabled={isSubmitting}
-                className="rounded-lg border border-slate-300 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed"
+                className="min-h-11 rounded-lg border border-slate-300 py-3 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed"
               >
                 {formatMoney(billete)}
               </button>

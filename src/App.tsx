@@ -1,4 +1,5 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { Toaster } from 'sonner';
 import ProtectedRoute from './core/auth/ProtectedRoute';
 import LoginPage from './modules/auth/pages/LoginPage';
 import RegistroPage from './modules/auth/pages/RegistroPage';
@@ -12,6 +13,7 @@ import PosLayout from './shared/components/layout/PosLayout';
 function App() {
   return (
     <BrowserRouter>
+      <Toaster position="top-right" richColors closeButton />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/registro" element={<RegistroPage />} />

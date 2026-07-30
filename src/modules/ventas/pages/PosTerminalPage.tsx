@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
-import { CreditCard, HandCoins, ScanBarcode, Trash2, XCircle } from 'lucide-react';
+import { toast } from 'sonner';
+import { CreditCard, HandCoins, Minus, Plus, ScanBarcode, Trash2, XCircle } from 'lucide-react';
 import { useCartStore } from '../store/useCartStore';
 import { registrarVenta } from '../services/ventaOfflineService';
 import ClientSelectionModal from '../components/ClientSelectionModal';
@@ -10,6 +11,11 @@ import { useAuthStore } from '../../../core/store/useAuthStore';
 import { db } from '../../../core/db/dexieInstance';
 import type { ClienteRow } from '../../../core/db/tables';
 
+// Ventana de gracia del botón "Cancelar venta": el primer toque solo arma
+// la confirmación, hay que tocar de nuevo dentro de este margen para que
+// realmente se borre el carrito.
+const VENTANA_CONFIRMACION_MS = 3000;
+
 export default function PosTerminalPage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [barcode, setBarcode] = useState('');
@@ -17,11 +23,14 @@ export default function PosTerminalPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isFiadoModalOpen, setIsFiadoModalOpen] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [confirmandoCancelar, setConfirmandoCancelar] = useState(false);
+  const cancelarTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const cartItems = useCartStore((state) => state.cartItems);
   const total = useCartStore((state) => state.total);
   const addItem = useCartStore((state) => state.addItem);
   const removeItem = useCartStore((state) => state.removeItem);
+  const actualizarCantidad = useCartStore((state) => state.actualizarCantidad);
   const clearCart = useCartStore((state) => state.clearCart);
 
   const tiendaId = useAuthStore((state) => state.tiendaId);
@@ -68,9 +77,9 @@ export default function PosTerminalPage() {
       });
       setIsPaymentModalOpen(false);
       clearCart();
-      alert(`Venta registrada localmente. Vuelto: ${formatMoney(montoRecibido - total)}`);
+      toast.success(`Venta registrada localmente. Vuelto: ${formatMoney(montoRecibido - total)}`);
     } catch {
-      alert('No se pudo registrar la venta. Intenta de nuevo.');
+      toast.error('No se pudo registrar la venta. Intenta de nuevo.');
     } finally {
       setIsSubmitting(false);
       inputRef.current?.focus();
@@ -96,13 +105,34 @@ export default function PosTerminalPage() {
         clienteId: cliente.id,
       });
       clearCart();
-      alert(`Venta fiada registrada para ${cliente.nombre}`);
+      toast.success(`Venta fiada registrada para ${cliente.nombre}`);
     } catch {
-      alert('No se pudo registrar la venta fiada. Intenta de nuevo.');
+      toast.error('No se pudo registrar la venta fiada. Intenta de nuevo.');
     } finally {
       inputRef.current?.focus();
     }
   }
+
+  function handleCancelarVenta() {
+    if (cartItems.length === 0) return;
+
+    if (!confirmandoCancelar) {
+      setConfirmandoCancelar(true);
+      cancelarTimeoutRef.current = setTimeout(() => setConfirmandoCancelar(false), VENTANA_CONFIRMACION_MS);
+      return;
+    }
+
+    if (cancelarTimeoutRef.current) clearTimeout(cancelarTimeoutRef.current);
+    setConfirmandoCancelar(false);
+    clearCart();
+    toast('Venta cancelada');
+  }
+
+  useEffect(() => {
+    return () => {
+      if (cancelarTimeoutRef.current) clearTimeout(cancelarTimeoutRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -172,7 +202,29 @@ export default function PosTerminalPage() {
                   {cartItems.map((item) => (
                     <tr key={item.productoId} className="text-sm">
                       <td className="px-4 py-3 font-medium text-slate-900">{item.nombre}</td>
-                      <td className="px-4 py-3 text-center text-slate-600">{item.cantidad}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => actualizarCantidad(item.productoId, item.cantidad - 1)}
+                            aria-label={`Reducir cantidad de ${item.nombre}`}
+                            className="flex h-11 w-11 items-center justify-center rounded-lg border border-slate-300 text-slate-600 transition hover:bg-slate-50 active:bg-slate-100"
+                          >
+                            <Minus size={16} />
+                          </button>
+                          <span className="w-6 text-center text-sm font-semibold text-slate-900">
+                            {item.cantidad}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => actualizarCantidad(item.productoId, item.cantidad + 1)}
+                            aria-label={`Aumentar cantidad de ${item.nombre}`}
+                            className="flex h-11 w-11 items-center justify-center rounded-lg border border-slate-300 text-slate-600 transition hover:bg-slate-50 active:bg-slate-100"
+                          >
+                            <Plus size={16} />
+                          </button>
+                        </div>
+                      </td>
                       <td className="px-4 py-3 text-right text-slate-600">{formatMoney(item.precio)}</td>
                       <td className="px-4 py-3 text-right font-medium text-slate-900">
                         {formatMoney(item.subtotal)}
@@ -220,12 +272,16 @@ export default function PosTerminalPage() {
             </button>
             <button
               type="button"
-              onClick={clearCart}
+              onClick={handleCancelarVenta}
               disabled={cartItems.length === 0}
-              className="flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:text-slate-300"
+              className={
+                confirmandoCancelar
+                  ? 'flex items-center justify-center gap-2 rounded-xl bg-red-600 py-3 text-sm font-semibold text-white transition hover:bg-red-700'
+                  : 'flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:text-slate-300'
+              }
             >
               <XCircle size={18} />
-              Cancelar venta
+              {confirmandoCancelar ? 'Confirmar borrado' : 'Cancelar venta'}
             </button>
           </div>
         </div>

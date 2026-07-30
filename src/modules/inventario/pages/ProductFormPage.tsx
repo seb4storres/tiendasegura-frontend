@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 import { crearProducto } from '../services/productoService';
 import { useAuthStore } from '../../../core/store/useAuthStore';
 
@@ -31,9 +32,10 @@ export default function ProductFormPage() {
         },
         tiendaId,
       );
-      alert('Producto creado correctamente');
+      toast.success('Producto creado correctamente');
       navigate('/inventario');
-    } catch {
+    } catch (err) {
+      console.error('Error al crear producto:', err);
       setError('No se pudo crear el producto. Intenta de nuevo.');
     } finally {
       setIsSubmitting(false);

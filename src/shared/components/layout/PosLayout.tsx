@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
+import { toast } from 'sonner';
 import { Cloud, DownloadCloud, LogOut, Printer, ShoppingCart, Package, Users } from 'lucide-react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../../core/store/useAuthStore';
@@ -7,6 +8,7 @@ import { sincronizarCatalogoProductos } from '../../../modules/inventario/servic
 import { useNetworkSync } from '../../../core/hooks/useNetworkSync';
 import { db } from '../../../core/db/dexieInstance';
 import { conectar as conectarImpresora } from '../../../core/printer/serialPrinter';
+import OfflineBanner from '../OfflineBanner';
 
 const NAV_ITEMS = [
   { to: '/', label: 'Ventas', icon: ShoppingCart },
@@ -53,7 +55,7 @@ export default function PosLayout() {
     const resultado = await conectarImpresora();
     setImpresoraConectada(resultado.conectado);
     if (resultado.error) {
-      alert(resultado.error);
+      toast.error(resultado.error);
     }
   }
 
@@ -65,112 +67,116 @@ export default function PosLayout() {
     setIsSyncingCatalogo(true);
     try {
       const total = await sincronizarCatalogoProductos(tiendaId);
-      alert(`Catálogo actualizado: ${total} productos.`);
+      toast.success(`Catálogo actualizado: ${total} productos.`);
     } catch {
-      alert('No se pudo descargar el catálogo. Verifica tu conexión.');
+      toast.error('No se pudo descargar el catálogo. Verifica tu conexión.');
     } finally {
       setIsSyncingCatalogo(false);
     }
   }
 
   return (
-    <div className="flex h-screen bg-slate-100">
-      <aside className="flex w-20 flex-col items-center gap-1 border-r border-slate-200 bg-white py-4">
-        <span className="mb-4 text-lg font-bold text-blue-600">TS</span>
-        {NAV_ITEMS.map(({ to, label, icon: Icon }) => (
-          <NavLink
-            key={to}
-            to={to}
-            end={to === '/'}
-            className={({ isActive }) =>
-              `flex w-16 flex-col items-center gap-1 rounded-lg py-2 text-xs font-medium transition ${
-                isActive
-                  ? 'bg-blue-50 text-blue-600'
-                  : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
-              }`
-            }
-          >
-            <Icon size={20} />
-            {label}
-          </NavLink>
-        ))}
-      </aside>
+    <div className="flex h-screen flex-col bg-slate-100">
+      <OfflineBanner />
 
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <header className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-3">
-          <div className="text-sm">
-            <p className="font-medium text-slate-900">{usuario?.nombre ?? usuario?.email}</p>
-            <p className="text-slate-500">{usuario?.rol}</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={forceSync}
-              disabled={isSyncingVentas}
-              title={
-                isSyncingVentas
-                  ? 'Sincronizando…'
-                  : transaccionesConError > 0
-                    ? `${transaccionesConError} transacción(es) con error de sincronización: requieren atención`
-                    : transaccionesPendientes > 0
-                      ? `${transaccionesPendientes} transacción(es) pendientes de sincronizar`
-                      : 'Todo está sincronizado'
+      <div className="flex flex-1 overflow-hidden">
+        <aside className="flex w-20 flex-col items-center gap-1 border-r border-slate-200 bg-white py-4">
+          <span className="mb-4 text-lg font-bold text-blue-600">TS</span>
+          {NAV_ITEMS.map(({ to, label, icon: Icon }) => (
+            <NavLink
+              key={to}
+              to={to}
+              end={to === '/'}
+              className={({ isActive }) =>
+                `flex w-16 flex-col items-center gap-1 rounded-lg py-2 text-xs font-medium transition ${
+                  isActive
+                    ? 'bg-blue-50 text-blue-600'
+                    : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
+                }`
               }
-              className="relative flex items-center justify-center rounded-lg p-2 transition hover:bg-slate-50 disabled:cursor-not-allowed"
             >
-              <Cloud
-                size={20}
-                className={
-                  isSyncingVentas
-                    ? 'animate-spin text-blue-500'
-                    : transaccionesConError > 0
-                      ? 'text-red-500'
-                      : transaccionesPendientes > 0
-                        ? 'text-amber-500'
-                        : 'text-emerald-500'
-                }
-              />
-              {!isSyncingVentas && (transaccionesConError > 0 || transaccionesPendientes > 0) && (
-                <span
-                  className={`absolute -right-0.5 -top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[10px] font-bold leading-none text-white ${
-                    transaccionesConError > 0 ? 'bg-red-500' : 'bg-amber-500'
-                  }`}
-                >
-                  {transaccionesConError > 0 ? transaccionesConError : transaccionesPendientes}
-                </span>
-              )}
-            </button>
-            <button
-              type="button"
-              onClick={handleConectarImpresora}
-              title={impresoraConectada ? 'Impresora térmica conectada' : 'Conectar impresora térmica'}
-              className="flex items-center justify-center rounded-lg p-2 transition hover:bg-slate-50"
-            >
-              <Printer size={20} className={impresoraConectada ? 'text-emerald-500' : 'text-slate-400'} />
-            </button>
-            <button
-              type="button"
-              onClick={handleSincronizarCatalogo}
-              disabled={isSyncingCatalogo}
-              className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-blue-50 hover:text-blue-600 disabled:cursor-not-allowed disabled:text-slate-300"
-            >
-              <DownloadCloud size={16} className={isSyncingCatalogo ? 'animate-spin' : undefined} />
-              {isSyncingCatalogo ? 'Sincronizando…' : 'Descargar catálogo'}
-            </button>
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-red-50 hover:text-red-600"
-            >
-              <LogOut size={16} />
-              Cerrar sesión
-            </button>
-          </div>
-        </header>
+              <Icon size={20} />
+              {label}
+            </NavLink>
+          ))}
+        </aside>
 
-        <main className="flex-1 overflow-y-auto p-6">
-          <Outlet />
-        </main>
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <header className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-3">
+            <div className="text-sm">
+              <p className="font-medium text-slate-900">{usuario?.nombre ?? usuario?.email}</p>
+              <p className="text-slate-500">{usuario?.rol}</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={forceSync}
+                disabled={isSyncingVentas}
+                title={
+                  isSyncingVentas
+                    ? 'Sincronizando…'
+                    : transaccionesConError > 0
+                      ? `${transaccionesConError} transacción(es) con error de sincronización: requieren atención`
+                      : transaccionesPendientes > 0
+                        ? `${transaccionesPendientes} transacción(es) pendientes de sincronizar`
+                        : 'Todo está sincronizado'
+                }
+                className="relative flex items-center justify-center rounded-lg p-2 transition hover:bg-slate-50 disabled:cursor-not-allowed"
+              >
+                <Cloud
+                  size={20}
+                  className={
+                    isSyncingVentas
+                      ? 'animate-spin text-blue-500'
+                      : transaccionesConError > 0
+                        ? 'text-red-500'
+                        : transaccionesPendientes > 0
+                          ? 'text-amber-500'
+                          : 'text-emerald-500'
+                  }
+                />
+                {!isSyncingVentas && (transaccionesConError > 0 || transaccionesPendientes > 0) && (
+                  <span
+                    className={`absolute -right-0.5 -top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[10px] font-bold leading-none text-white ${
+                      transaccionesConError > 0 ? 'bg-red-500' : 'bg-amber-500'
+                    }`}
+                  >
+                    {transaccionesConError > 0 ? transaccionesConError : transaccionesPendientes}
+                  </span>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={handleConectarImpresora}
+                title={impresoraConectada ? 'Impresora térmica conectada' : 'Conectar impresora térmica'}
+                className="flex items-center justify-center rounded-lg p-2 transition hover:bg-slate-50"
+              >
+                <Printer size={20} className={impresoraConectada ? 'text-emerald-500' : 'text-slate-400'} />
+              </button>
+              <button
+                type="button"
+                onClick={handleSincronizarCatalogo}
+                disabled={isSyncingCatalogo}
+                className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-blue-50 hover:text-blue-600 disabled:cursor-not-allowed disabled:text-slate-300"
+              >
+                <DownloadCloud size={16} className={isSyncingCatalogo ? 'animate-spin' : undefined} />
+                {isSyncingCatalogo ? 'Sincronizando…' : 'Descargar catálogo'}
+              </button>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-red-50 hover:text-red-600"
+              >
+                <LogOut size={16} />
+                Cerrar sesión
+              </button>
+            </div>
+          </header>
+
+          <main className="flex-1 overflow-y-auto p-6">
+            <Outlet />
+          </main>
+        </div>
       </div>
     </div>
   );

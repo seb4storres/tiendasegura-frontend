@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { toast } from 'sonner';
 import { apiClient } from './apiClient';
 import { db } from '../db/dexieInstance';
 import type { ClienteRow, MetodoPago } from '../db/tables';
@@ -209,10 +210,22 @@ async function reemplazarIdClienteLocal(clienteLocal: ClienteRow, real: ClienteA
 // Punto de entrada único para useNetworkSync: clientes primero (para que
 // cualquier venta/abono fiado a un cliente nuevo tenga ya el id real del
 // backend antes de intentar subirse), después ventas, después abonos.
+// Un resumen de fallas se avisa por toast: sin esto, una transacción que
+// termina en 'error' queda invisible hasta que alguien note el ícono rojo
+// de la nube por su cuenta.
 export async function procesarTodoPendiente(): Promise<void> {
-  await procesarClientesPendientes();
-  await procesarVentasPendientes();
-  await procesarAbonosPendientes();
+  const clientes = await procesarClientesPendientes();
+  const ventas = await procesarVentasPendientes();
+  const abonos = await procesarAbonosPendientes();
+
+  const fallidas = clientes.fallidas + ventas.fallidas + abonos.fallidas;
+  if (fallidas > 0) {
+    toast.error(
+      fallidas === 1
+        ? '1 transacción no se pudo sincronizar. Revisa tu conexión.'
+        : `${fallidas} transacciones no se pudieron sincronizar. Revisa tu conexión.`,
+    );
+  }
 }
 
 // "Eager sync": lo llaman los servicios de creación (ventaOfflineService,

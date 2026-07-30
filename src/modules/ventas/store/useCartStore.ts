@@ -13,6 +13,7 @@ interface CartState {
   total: number;
   addItem: (producto: { productoId: string; nombre: string; precio: number }, cantidad?: number) => void;
   removeItem: (productoId: string) => void;
+  actualizarCantidad: (productoId: string, nuevaCantidad: number) => void;
   clearCart: () => void;
 }
 
@@ -44,6 +45,21 @@ export const useCartStore = create<CartState>()((set) => ({
   removeItem: (productoId) =>
     set((state) => {
       const cartItems = state.cartItems.filter((item) => item.productoId !== productoId);
+      return { cartItems, total: calculateTotal(cartItems) };
+    }),
+  actualizarCantidad: (productoId, nuevaCantidad) =>
+    set((state) => {
+      // Llegar a 0 (o menos) con el botón [-] elimina el producto del
+      // carrito, igual que si el cajero lo hubiera quitado a mano.
+      const cartItems =
+        nuevaCantidad <= 0
+          ? state.cartItems.filter((item) => item.productoId !== productoId)
+          : state.cartItems.map((item) =>
+              item.productoId === productoId
+                ? { ...item, cantidad: nuevaCantidad, subtotal: nuevaCantidad * item.precio }
+                : item,
+            );
+
       return { cartItems, total: calculateTotal(cartItems) };
     }),
   clearCart: () => set({ cartItems: [], total: 0 }),

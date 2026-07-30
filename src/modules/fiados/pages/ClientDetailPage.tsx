@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
+import { toast } from 'sonner';
 import { db } from '../../../core/db/dexieInstance';
 import { useAuthStore } from '../../../core/store/useAuthStore';
 import { formatMoney } from '../../../core/utils/money';
@@ -34,7 +35,7 @@ export default function ClientDetailPage() {
     try {
       await registrarAbono(id, montoNumerico, usuario.id);
       setMonto('');
-      alert('Abono registrado correctamente');
+      toast.success('Abono registrado correctamente');
     } catch {
       setError('No se pudo registrar el abono. Intenta de nuevo.');
     } finally {
