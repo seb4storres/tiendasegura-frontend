@@ -11,9 +11,6 @@ export interface AuthUsuario {
 
 interface AuthData {
   token: string;
-  // Todavía no hay lógica de refresh en apiClient (se agrega cuando el
-  // access token empiece a expirar en producción); se persiste desde ya
-  // para no tener que volver a tocar el shape del store en ese momento.
   refreshToken: string;
   tiendaId: string;
   usuario: AuthUsuario;
@@ -22,6 +19,9 @@ interface AuthData {
 interface AuthState extends Partial<AuthData> {
   isAuthenticated: boolean;
   login: (data: AuthData) => void;
+  // Usado por el interceptor 401 de apiClient tras una renovación silenciosa:
+  // solo pisa los tokens, deja tiendaId/usuario intactos.
+  setTokens: (token: string, refreshToken: string) => void;
   logout: () => void;
 }
 
@@ -37,6 +37,7 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
       login: ({ token, refreshToken, tiendaId, usuario }) =>
         set({ token, refreshToken, tiendaId, usuario, isAuthenticated: true }),
+      setTokens: (token, refreshToken) => set({ token, refreshToken }),
       logout: () =>
         set({
           token: undefined,
