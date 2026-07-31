@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import { useAuthStore } from '../store/useAuthStore';
 
 export const apiClient = axios.create({
-  baseURL: 'http://localhost:8080',
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8080',
 });
 
 apiClient.interceptors.request.use((config) => {
