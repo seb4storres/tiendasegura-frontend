@@ -5,7 +5,7 @@
 export type SyncStatus = 'pending' | 'synced' | 'error';
 
 export type Rol = 'ADMIN' | 'CAJERO';
-export type MetodoPago = 'EFECTIVO' | 'TRANSFERENCIA' | 'FIADO';
+export type MetodoPago = 'EFECTIVO' | 'BANCOLOMBIA' | 'DAVIPLATA' | 'FIADO';
 export type EstadoVenta = 'COMPLETADA' | 'ANULADA';
 
 export interface TiendaRow {

@@ -6,6 +6,7 @@ import { useCartStore } from '../store/useCartStore';
 import { registrarVenta } from '../services/ventaOfflineService';
 import ClientSelectionModal from '../components/ClientSelectionModal';
 import PaymentConfirmationModal from '../components/PaymentConfirmationModal';
+import type { MetodoPagoCheckout } from '../components/PaymentConfirmationModal';
 import { formatMoney } from '../../../core/utils/money';
 import { useAuthStore } from '../../../core/store/useAuthStore';
 import { db } from '../../../core/db/dexieInstance';
@@ -62,7 +63,7 @@ export default function PosTerminalPage() {
     setIsPaymentModalOpen(true);
   }
 
-  async function handleConfirmarPago(montoRecibido: number) {
+  async function handleConfirmarPago(metodoPago: MetodoPagoCheckout, montoRecibido: number) {
     if (!tiendaId || !usuario) return;
 
     setIsSubmitting(true);
@@ -72,12 +73,17 @@ export default function PosTerminalPage() {
         total,
         tiendaId,
         usuarioId: usuario.id,
-        metodoPago: 'EFECTIVO',
-        montoRecibido,
+        metodoPago,
+        // Solo tiene sentido para EFECTIVO: en Bancolombia/Daviplata no hay vuelto.
+        montoRecibido: metodoPago === 'EFECTIVO' ? montoRecibido : undefined,
       });
       setIsPaymentModalOpen(false);
       clearCart();
-      toast.success(`Venta registrada localmente. Vuelto: ${formatMoney(montoRecibido - total)}`);
+      toast.success(
+        metodoPago === 'EFECTIVO'
+          ? `Venta registrada localmente. Vuelto: ${formatMoney(montoRecibido - total)}`
+          : 'Venta registrada localmente.',
+      );
     } catch {
       toast.error('No se pudo registrar la venta. Intenta de nuevo.');
     } finally {

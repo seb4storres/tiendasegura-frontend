@@ -12,11 +12,14 @@ interface VentaItemRequest {
 
 // Shape real confirmado contra el backend: el arreglo de líneas se llama
 // `items` (no `detalles`), y los pagos en EFECTIVO exigen `montoRecibido`
-// para que el backend calcule el vuelto.
+// para que el backend calcule el vuelto. El backend recalcula IVA y
+// subtotal internamente por seguridad — a propósito NUNCA viajan aquí,
+// solo productos, total y método de pago.
 interface VentaRequest {
   id: string;
   fecha: string;
   metodoPago: MetodoPago;
+  total: number;
   clienteId?: string;
   montoRecibido?: number;
   items: VentaItemRequest[];
@@ -108,6 +111,7 @@ export async function procesarVentasPendientes(): Promise<ProcesarColaResultado>
         id: venta.id,
         fecha: venta.fecha,
         metodoPago: venta.metodoPago,
+        total: venta.total,
         clienteId: venta.clienteId,
         // Fallback a `total` (pago exacto) para ventas guardadas antes de
         // que el checkout empezara a capturar el monto recibido real.
