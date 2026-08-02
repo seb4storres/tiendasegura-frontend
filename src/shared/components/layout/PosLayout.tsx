@@ -1,14 +1,13 @@
 import { useState } from 'react';
-import { useLiveQuery } from 'dexie-react-hooks';
 import { toast } from 'sonner';
-import { Cloud, DownloadCloud, LogOut, Printer, ShoppingCart, Package, Users } from 'lucide-react';
+import { DownloadCloud, LogOut, Printer, ShoppingCart, Package, Users } from 'lucide-react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../../core/store/useAuthStore';
 import { sincronizarCatalogoProductos } from '../../../modules/inventario/services/inventarioSyncService';
 import { useNetworkSync } from '../../../core/hooks/useNetworkSync';
-import { db } from '../../../core/db/dexieInstance';
 import { conectar as conectarImpresora } from '../../../core/printer/serialPrinter';
 import OfflineBanner from '../OfflineBanner';
+import SyncStatusIndicator from '../SyncStatusIndicator';
 
 const NAV_ITEMS = [
   { to: '/', label: 'Ventas', icon: ShoppingCart },
@@ -25,26 +24,6 @@ export default function PosLayout() {
   const [impresoraConectada, setImpresoraConectada] = useState(false);
 
   const { isSyncing: isSyncingVentas, forceSync } = useNetworkSync();
-  // Cuenta ventas + abonos + clientes juntos: la nube refleja el estado
-  // global de todo lo que falta subir, sin importar el tipo de registro.
-  const transaccionesPendientes =
-    useLiveQuery(async () => {
-      const [ventas, abonos, clientes] = await Promise.all([
-        db.ventas.where('syncStatus').equals('pending').count(),
-        db.abonos.where('syncStatus').equals('pending').count(),
-        db.clientes.where('syncStatus').equals('pending').count(),
-      ]);
-      return ventas + abonos + clientes;
-    }, []) ?? 0;
-  const transaccionesConError =
-    useLiveQuery(async () => {
-      const [ventas, abonos, clientes] = await Promise.all([
-        db.ventas.where('syncStatus').equals('error').count(),
-        db.abonos.where('syncStatus').equals('error').count(),
-        db.clientes.where('syncStatus').equals('error').count(),
-      ]);
-      return ventas + abonos + clientes;
-    }, []) ?? 0;
 
   function handleLogout() {
     logout();
@@ -108,43 +87,7 @@ export default function PosLayout() {
               <p className="text-slate-500">{usuario?.rol}</p>
             </div>
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={forceSync}
-                disabled={isSyncingVentas}
-                title={
-                  isSyncingVentas
-                    ? 'Sincronizando…'
-                    : transaccionesConError > 0
-                      ? `${transaccionesConError} transacción(es) con error de sincronización: requieren atención`
-                      : transaccionesPendientes > 0
-                        ? `${transaccionesPendientes} transacción(es) pendientes de sincronizar`
-                        : 'Todo está sincronizado'
-                }
-                className="relative flex items-center justify-center rounded-lg p-2 transition hover:bg-slate-50 disabled:cursor-not-allowed"
-              >
-                <Cloud
-                  size={20}
-                  className={
-                    isSyncingVentas
-                      ? 'animate-spin text-blue-500'
-                      : transaccionesConError > 0
-                        ? 'text-red-500'
-                        : transaccionesPendientes > 0
-                          ? 'text-amber-500'
-                          : 'text-emerald-500'
-                  }
-                />
-                {!isSyncingVentas && (transaccionesConError > 0 || transaccionesPendientes > 0) && (
-                  <span
-                    className={`absolute -right-0.5 -top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[10px] font-bold leading-none text-white ${
-                      transaccionesConError > 0 ? 'bg-red-500' : 'bg-amber-500'
-                    }`}
-                  >
-                    {transaccionesConError > 0 ? transaccionesConError : transaccionesPendientes}
-                  </span>
-                )}
-              </button>
+              <SyncStatusIndicator isSyncing={isSyncingVentas} onForceSync={forceSync} />
               <button
                 type="button"
                 onClick={handleConectarImpresora}

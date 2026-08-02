@@ -2,7 +2,7 @@ import axios from 'axios';
 import { toast } from 'sonner';
 import { apiClient } from './apiClient';
 import { db } from '../db/dexieInstance';
-import type { ClienteRow, MetodoPago } from '../db/tables';
+import type { ClienteRow, MetodoPago, VentaRow } from '../db/tables';
 
 interface VentaItemRequest {
   productoId: string;
@@ -95,38 +95,70 @@ async function procesarCola<T>(
   return { enviadas, fallidas };
 }
 
-// Sube al backend las ventas guardadas offline con syncStatus 'pending'.
-// El id de la venta viaja tal cual se generó en el cliente: es la clave de
-// idempotencia que usa RegistrarVentaUseCase para no duplicar cobro/stock si
-// esta función corre más de una vez sobre la misma venta (reconexiones
-// intermitentes, doble clic en "sincronizar", etc.).
+// Compartido entre el barrido general y el reintento puntual de una sola
+// venta: mismo shape de payload sin importar quién lo dispare.
+async function construirPayloadVenta(venta: VentaRow): Promise<VentaRequest> {
+  const detalles = await db.detalleVentas.where('ventaId').equals(venta.id).toArray();
+  return {
+    id: venta.id,
+    fecha: venta.fecha,
+    metodoPago: venta.metodoPago,
+    total: venta.total,
+    clienteId: venta.clienteId,
+    // Fallback a `total` (pago exacto) para ventas guardadas antes de
+    // que el checkout empezara a capturar el monto recibido real.
+    montoRecibido: venta.metodoPago === 'EFECTIVO' ? (venta.montoRecibido ?? venta.total) : undefined,
+    items: detalles.map((detalle) => ({
+      productoId: detalle.productoId,
+      cantidad: detalle.cantidad,
+      precioUnitarioSnapshot: detalle.precioUnitarioSnapshot,
+    })),
+  };
+}
+
+// Sube al backend las ventas guardadas offline con syncStatus 'pending' O
+// 'error'. El id de la venta viaja tal cual se generó en el cliente: es la
+// clave de idempotencia que usa RegistrarVentaUseCase para no duplicar
+// cobro/stock si esta función corre más de una vez sobre la misma venta
+// (reconexiones intermitentes, doble clic en "sincronizar", etc.). Como el
+// backend ahora es idempotente por ese mismo id, reintentar automáticamente
+// una venta que antes quedó 'error' es seguro — ya no hace falta que el
+// cajero la reintente a mano para que salga de la cola.
 export async function procesarVentasPendientes(): Promise<ProcesarColaResultado> {
-  const pendientes = await db.ventas.where('syncStatus').equals('pending').toArray();
+  const pendientes = await db.ventas.where('syncStatus').anyOf('pending', 'error').toArray();
 
   return procesarCola(
     pendientes,
     async (venta) => {
-      const detalles = await db.detalleVentas.where('ventaId').equals(venta.id).toArray();
-      const payload: VentaRequest = {
-        id: venta.id,
-        fecha: venta.fecha,
-        metodoPago: venta.metodoPago,
-        total: venta.total,
-        clienteId: venta.clienteId,
-        // Fallback a `total` (pago exacto) para ventas guardadas antes de
-        // que el checkout empezara a capturar el monto recibido real.
-        montoRecibido: venta.metodoPago === 'EFECTIVO' ? (venta.montoRecibido ?? venta.total) : undefined,
-        items: detalles.map((detalle) => ({
-          productoId: detalle.productoId,
-          cantidad: detalle.cantidad,
-          precioUnitarioSnapshot: detalle.precioUnitarioSnapshot,
-        })),
-      };
-      await apiClient.post('/ventas', payload);
+      await apiClient.post('/ventas', await construirPayloadVenta(venta));
     },
     (venta) => db.ventas.update(venta.id, { syncStatus: 'synced' }),
     (venta) => db.ventas.update(venta.id, { syncStatus: 'error' }),
   );
+}
+
+// Reintento manual de UNA venta puntual desde el panel de errores: mismo
+// contrato de éxito que procesarVentasPendientes (200-299 o 409 → 'synced'),
+// pero aislado a un solo id para que el cajero la fuerce de inmediato sin
+// esperar su turno en el barrido general (o el backoff automático).
+export async function reintentarVenta(ventaId: string): Promise<boolean> {
+  const venta = await db.ventas.get(ventaId);
+  if (!venta) return false;
+
+  try {
+    await apiClient.post('/ventas', await construirPayloadVenta(venta));
+    await db.ventas.update(ventaId, { syncStatus: 'synced' });
+    return true;
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 409) {
+      await db.ventas.update(ventaId, { syncStatus: 'synced' });
+      return true;
+    }
+    if (axios.isAxiosError(error) && error.response) {
+      await db.ventas.update(ventaId, { syncStatus: 'error' });
+    }
+    return false;
+  }
 }
 
 // Mismo principio que procesarVentasPendientes, pero para los abonos que el
@@ -216,20 +248,27 @@ async function reemplazarIdClienteLocal(clienteLocal: ClienteRow, real: ClienteA
 // backend antes de intentar subirse), después ventas, después abonos.
 // Un resumen de fallas se avisa por toast: sin esto, una transacción que
 // termina en 'error' queda invisible hasta que alguien note el ícono rojo
-// de la nube por su cuenta.
-export async function procesarTodoPendiente(): Promise<void> {
+// de la nube por su cuenta. `silencioso` lo usa el backoff automático de
+// useNetworkSync para reintentar en segundo plano sin spamear un toast en
+// cada ciclo — el ícono rojo persistente ya es señal suficiente mientras
+// tanto (misma filosofía que OfflineBanner: pasiva, no exige atención).
+export async function procesarTodoPendiente(opts: { silencioso?: boolean } = {}): Promise<ProcesarColaResultado> {
   const clientes = await procesarClientesPendientes();
   const ventas = await procesarVentasPendientes();
   const abonos = await procesarAbonosPendientes();
 
+  const enviadas = clientes.enviadas + ventas.enviadas + abonos.enviadas;
   const fallidas = clientes.fallidas + ventas.fallidas + abonos.fallidas;
-  if (fallidas > 0) {
+
+  if (fallidas > 0 && !opts.silencioso) {
     toast.error(
       fallidas === 1
         ? '1 transacción no se pudo sincronizar. Revisa tu conexión.'
         : `${fallidas} transacciones no se pudieron sincronizar. Revisa tu conexión.`,
     );
   }
+
+  return { enviadas, fallidas };
 }
 
 // "Eager sync": lo llaman los servicios de creación (ventaOfflineService,
